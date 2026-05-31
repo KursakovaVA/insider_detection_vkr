@@ -1,0 +1,180 @@
+context:
+  timezone: "Europe/Moscow"
+  work_hours:
+    start: "09:00"
+    end: "18:00"
+    weekdays: [1, 2, 3, 4, 5]
+  off_hours:
+    multiplier: 2.0
+    actions: ["login_failed", "login_success"]
+
+thresholds:
+  alert: 10.0
+  severity:
+    medium: 6.0
+    high: 12.0
+    critical: 20.0
+
+decay:
+  tau_seconds: 3600
+
+alert:
+  cooldown_minutes: 10
+
+default_weight: 0.5
+
+rules:
+  - id: login_failed
+    description: "Неудачная попытка входа"
+    weight: 1.0
+    match:
+      action: ["login_failed"]
+
+  - id: login_success
+    description: "Успешный вход"
+    weight: 2.0
+    match:
+      action: ["login_success"]
+
+  - id: command_exec_base
+    description: "Ввод команды"
+    weight: 1.0
+    match:
+      action: [ "command_exec" ]
+
+  - id: command_failed
+    description: "Команда не выполнилась"
+    weight: 0.5
+    match:
+      action: [ "command_failed" ]
+
+  - id: account_discovery
+    description: "Перечисление учётных записей (id/whoami/who/last)"
+    weight: 1.5
+    match:
+      action: ["command_exec"]
+      object_contains_any: ["whoami", " id", "groups", "getent passwd", "who", "w ", "last "]
+
+  - id: system_info_discovery
+    description: "Сбор сведений о системе (uname/os-release/hostnamectl)"
+    weight: 1.5
+    match:
+      action: ["command_exec"]
+      object_contains_any: ["uname", "/etc/os-release", "lsb_release", "hostnamectl", "/proc/version"]
+
+  - id: network_config_discovery
+    description: "Сбор сведений о сетевой конфигурации (ip/ifconfig/route)"
+    weight: 2.0
+    match:
+      action: ["command_exec"]
+      object_contains_any: ["ip a", "ip addr", "ip r", "ifconfig", "route -n", "arp -a"]
+
+  - id: network_service_discovery
+    description: "Обнаружение сетевых служб (ss/netstat/nmap)"
+    weight: 3.0
+    match:
+      action: ["command_exec"]
+      object_contains_any: ["ss ", "netstat", "nmap", "ncat -z", "nc -z"]
+
+  - id: process_discovery
+    description: "Перечисление процессов (ps/top/htop)"
+    weight: 1.5
+    match:
+      action: ["command_exec"]
+      object_contains_any: ["ps ", "ps -", "top -b", "htop", "pgrep"]
+
+  - id: file_directory_discovery
+    description: "Перечисление файлов и каталогов (find/ls -la/locate/tree)"
+    weight: 1.5
+    match:
+      action: ["command_exec"]
+      object_contains_any: ["find /", "find .", "ls -la", "ls -lA", "ls -laR", "locate ", "tree "]
+
+  - id: download_tools
+    description: "Инструменты загрузки (curl/wget/tftp/scp)"
+    weight: 2.0
+    match:
+      action: ["command_exec"]
+      object_contains_any: ["curl ", "wget ", "tftp ", "scp ", "sftp "]
+
+  - id: creds_or_keys_access
+    description: "Доступ к учётным данным и секретам"
+    weight: 5.0
+    match:
+      action: ["command_exec"]
+      object_contains_any:
+        - "/etc/shadow"
+        - "/etc/passwd"
+        - "/etc/sudoers"
+        - ".ssh"
+        - "authorized_keys"
+        - "id_rsa"
+        - "ssh-rsa"
+        - ".gnupg"
+        - ".aws/credentials"
+        - "kubeconfig"
+        - ".docker/config"
+        - ".git/config"
+        - ".env"
+        - ".netrc"
+        - ".pgpass"
+        - ".my.cnf"
+
+  - id: web_admin_probe
+    description: "Подключение к админ/логин-страницам"
+    weight: 2.5
+    match:
+      action: ["honeypot_hit"]
+      object_contains_any: ["/admin", "/wp-login", "/phpmyadmin", "/login", "/cgi-bin"]
+
+  - id: web_sensitive_path_probe
+    description: "Обращение к чувствительным веб-ресурсам (.env/.git/backup-файлы)"
+    weight: 3.0
+    match:
+      action: ["honeypot_hit"]
+      object_contains_any:
+        - "/.env"
+        - "/.git"
+        - "/.aws"
+        - "/config.php"
+        - "/wp-config.php"
+        - "/backup"
+        - "/dump"
+        - "/.bak"
+        - "/robots.txt"
+        - "/sitemap.xml"
+        - "/.svn"
+        - "/.htaccess"
+        - "/actuator/"
+        - "/metrics"
+        - "/debug"
+
+  - id: web_path_traversal_attempt
+    description: "Попытка обхода каталогов (../, %2e%2e)"
+    weight: 4.0
+    match:
+      action: ["honeypot_hit"]
+      object_contains_any: ["../", "..%2f", "%2e%2e/", "%2e%2e%2f", "..\\"]
+
+  - id: file_download_any
+    description: "Скачивание файла"
+    weight: 3.0
+    match:
+      action: [ "file_download" ]
+
+  - id: bait_file_download
+    description: "Скачивание приманочного документа (bait)"
+    weight: 7.0
+    match:
+      action: [ "file_download" ]
+      object_contains_any:
+        - "/bait/"
+        - "salary_report_2025"
+        - "vpn_passwords"
+        - "employees.csv"
+
+  - id: honeypot_hit_any
+    description: "Любое попадание в приманку"
+    weight: 0.3
+    match:
+      action: ["honeypot_hit"]
