@@ -1,0 +1,33 @@
+all:
+  vars:
+    ansible_user: vagrant
+    ansible_become: true
+    ansible_ssh_private_key_file: ~/.vagrant.d/insecure_private_key
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+    ansible_python_interpreter: /usr/bin/python3
+
+  children:
+    core:
+      hosts:
+        core:
+          ansible_host: 172.16.0.10
+
+    sensors:
+      hosts:
+        sensor_a:
+          ansible_host: 172.16.0.21
+        sensor_b:
+          ansible_host: 172.16.0.22
+
+    clients:
+      hosts:
+        client_a:
+          ansible_host: 192.168.10.11
+        client_b:
+          ansible_host: 192.168.20.11
+
+    docker_hosts:
+      hosts:
+        core:
+        sensor_a:
+        sensor_b:
